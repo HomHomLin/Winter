@@ -27,7 +27,7 @@ dependencies {
 pomConf {
     groupId 'com.meiyou.framework'
     artifactId 'winter'
-    depVersion '0.0.2-SNAPSHOT'
+    depVersion '0.0.3-SNAPSHOT'
     packaging "aar"
 }
 
