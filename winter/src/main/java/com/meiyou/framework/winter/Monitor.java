@@ -133,7 +133,7 @@ public class Monitor implements Handler.Callback {
                 public void doFrame(long frameTimeNanos) {
                     final long delta = (frameTimeNanos - lastSampleTime) / 1000000;
                     if (lastSampleTime != 0 && delta > delay) {
-                        LogUtils.w("monitor", "sample doFrame " + delta);
+                        //LogUtils.w("monitor", "sample doFrame " + delta);
                         processInfo(frameTimeNanos / 1000000);
                     } else {
                         statisticsStack(frameTimeNanos / 1000000, delta);
