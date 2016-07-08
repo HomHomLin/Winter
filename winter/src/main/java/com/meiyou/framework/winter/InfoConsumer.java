@@ -48,7 +48,7 @@ public class InfoConsumer extends HandlerThread implements Handler.Callback {
         if (!dirFile.exists()) {
             dirFile.mkdirs();
         }
-        SimpleDateFormat dateformat1 = new SimpleDateFormat("yyyy-MM-dd:HH:mm:ss", Locale.CHINESE);
+        SimpleDateFormat dateformat1 = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss", Locale.CHINESE);
         String a1 = dateformat1.format(new Date());
         File file = new File(dir + "/" + a1 + ".log");
         if (!file.exists()) {
@@ -110,7 +110,7 @@ public class InfoConsumer extends HandlerThread implements Handler.Callback {
             mBufferedWriter.newLine();
             mBufferedWriter.write(" cost  time:" + String.valueOf(stackInfo.mCheckTime - stackInfo.mSampleTime) + "ms");
             mBufferedWriter.newLine();
-            mBufferedWriter.write("time delta:" + String.valueOf(stackInfo.mCheckTime) + "ms");
+            mBufferedWriter.write("time delta:" + String.valueOf(stackInfo.delta) + "ms");
             mBufferedWriter.newLine();
             mBufferedWriter.write(stackInfo.getStackTraceString());
             mBufferedWriter.newLine();

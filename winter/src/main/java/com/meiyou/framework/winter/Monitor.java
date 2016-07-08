@@ -6,8 +6,6 @@ import android.os.Looper;
 import android.os.Message;
 import android.view.Choreographer;
 
-import com.meiyou.sdk.core.LogUtils;
-
 
 /**
  * 监控绘制性能,可以排查导致丢帧的问题
@@ -16,7 +14,7 @@ import com.meiyou.sdk.core.LogUtils;
 public class Monitor implements Handler.Callback {
     private static String sTAG = "Monitor";
     private int threshold = 1;
-    private long delay = 1000 / 60 * threshold;
+    private long delay = 1000 / 60;
     private long lastDoFrameTime = 0;
     private long lastSampleTime = 0;
     //private HandlerThread mHandlerThread;
@@ -30,8 +28,9 @@ public class Monitor implements Handler.Callback {
     private QueueCache<Long, StackInfo> stackQueue;
     private InfoConsumer mInfoConsumer;
     private static final int MSG_TYPE_LOOP = 0;
+    private boolean inited = false;
 
-    public static Monitor Default() {
+    public static Monitor getInstance() {
         return Holder.sMonitor;
     }
 
@@ -40,16 +39,27 @@ public class Monitor implements Handler.Callback {
     }
 
     private Monitor() {
+    }
+
+    public Monitor init(int threshold) {
         if (new Handler().getLooper() != Looper.getMainLooper()) {
             throw new RuntimeException(" must init in Main thread !");
         }
+        if (inited) {
+            return this;
+        }
 
+        if (threshold <= 0) {
+            threshold = 1;
+        }
+        this.threshold = threshold;
+        this.delay = delay * threshold;
         HandlerThread mHandlerThread = new CheckerHandlerThread("monitor",
                 android.os.Process.THREAD_PRIORITY_DISPLAY);
         mHandlerThread.start();
         mCheckerHandler = new Handler(mHandlerThread.getLooper(), this);
         mMainHandler = new Handler(Looper.getMainLooper());
-        stackQueue = new QueueCache<>(3);
+        stackQueue = new QueueCache<>(threshold + 1);
         mInfoConsumer = new InfoConsumer();
         mMainChoreographer = Choreographer.getInstance();
         mMainCallback = new Choreographer.FrameCallback() {
@@ -57,12 +67,13 @@ public class Monitor implements Handler.Callback {
             public void doFrame(final long frameTimeNanos) {
                 final long delta = (frameTimeNanos - lastDoFrameTime) / 1000000;
                 if (lastDoFrameTime != 0 && delta > delay) {
-                    LogUtils.d("monitor", "main doFrame " + delta);
+                    //LogUtils.d("monitor", "main doFrame " + delta);
+                    final long lastTime = lastDoFrameTime;
                     // 单线程操作 queue
                     mCheckerHandler.post(new Runnable() {
                         @Override
                         public void run() {
-                            processInfo(frameTimeNanos / 1000000);
+                            processInfo(lastTime / 1000000, frameTimeNanos / 1000000);
                         }
                     });
 
@@ -73,10 +84,12 @@ public class Monitor implements Handler.Callback {
                 }
             }
         };
-
+        inited = true;
+        return this;
     }
 
     public void start() {
+        //TODO fix mSampleChoreographer 可能还没有创建
         mSampleChoreographer.postFrameCallback(mSampleCallback);
         mMainChoreographer.postFrameCallback(mMainCallback);
     }
@@ -104,14 +117,17 @@ public class Monitor implements Handler.Callback {
     }
 
     /**
-     * @param checkTime ms
      */
-    private void processInfo(final long checkTime) {
+    private void processInfo(final long checkLastTime, final long checkNowTime) {
         for (StackInfo stackInfo : stackQueue.values()) {
-            stackInfo.setCheckTime(checkTime);
-            mInfoConsumer.consume(stackInfo);
+            if (stackInfo.mSampleTime > checkLastTime &&
+                    stackInfo.mSampleTime < checkNowTime) {
+                stackInfo.setCheckTime(checkNowTime);
+                mInfoConsumer.consume(stackInfo);
+            }
+
         }
-        stackQueue.clear();
+        //stackQueue.clear();
     }
 
     @Override
@@ -130,13 +146,24 @@ public class Monitor implements Handler.Callback {
             mSampleChoreographer = Choreographer.getInstance();
             mSampleCallback = new Choreographer.FrameCallback() {
                 @Override
-                public void doFrame(long frameTimeNanos) {
+                public void doFrame(final long frameTimeNanos) {
                     final long delta = (frameTimeNanos - lastSampleTime) / 1000000;
                     if (lastSampleTime != 0 && delta > delay) {
+                        //采样周期不准了,目前丢弃吧
                         //LogUtils.w("monitor", "sample doFrame " + delta);
-                        processInfo(frameTimeNanos / 1000000);
+//                        mCheckerHandler.post(new Runnable() {
+//                            @Override
+//                            public void run() {
+//                                processInfo(lastSampleTime / 1000000,frameTimeNanos / 1000000);
+//                            }
+//                        });
                     } else {
-                        statisticsStack(frameTimeNanos / 1000000, delta);
+                        mCheckerHandler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                statisticsStack(frameTimeNanos / 1000000, delta);
+                            }
+                        });
                     }
                     lastSampleTime = frameTimeNanos;
                     if (mLoopFlag) {

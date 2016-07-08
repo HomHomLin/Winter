@@ -27,7 +27,7 @@ public class MainActivity extends AppCompatActivity {
         btn2 = (Button) findViewById(R.id.btn2);
         assert btn != null;
         mHandler = new Handler();
-        monitor = Monitor.Default().setThreshold(2);
+        monitor = Monitor.getInstance().init(5);
         monitor.start();
         btn.setOnClickListener(new View.OnClickListener() {
             @Override
