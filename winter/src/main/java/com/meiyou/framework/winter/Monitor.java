@@ -6,6 +6,8 @@ import android.os.Looper;
 import android.os.Message;
 import android.view.Choreographer;
 
+import com.meiyou.sdk.core.LogUtils;
+
 
 /**
  * 监控绘制性能,可以排查导致丢帧的问题
@@ -13,49 +15,100 @@ import android.view.Choreographer;
  */
 public class Monitor implements Handler.Callback {
     private static String sTAG = "Monitor";
-
-    private static long delay = 1000 / 60;
-    private long lastTime = 0;
-    private HandlerThread mHandlerThread;
+    private int threshold = 1;
+    private long delay = 1000 / 60 * threshold;
+    private long lastDoFrameTime = 0;
+    private long lastSampleTime = 0;
+    //private HandlerThread mHandlerThread;
     private Handler mMainHandler;
-    Choreographer choreographer;
-    Choreographer.FrameCallback callback;
-    private boolean loopFlag = true;
+    private Handler mCheckerHandler;
+    private Choreographer mSampleChoreographer;
+    private Choreographer.FrameCallback mSampleCallback;
+    private Choreographer mMainChoreographer;
+    private Choreographer.FrameCallback mMainCallback;
+    private boolean mLoopFlag = true;
     private QueueCache<Long, StackInfo> stackQueue;
     private InfoConsumer mInfoConsumer;
+    private static final int MSG_TYPE_LOOP = 0;
 
-    public Monitor() {
-        mHandlerThread = new TestHandlerThread("monitor",
+    public static Monitor Default() {
+        return Holder.sMonitor;
+    }
+
+    static class Holder {
+        static Monitor sMonitor = new Monitor();
+    }
+
+    private Monitor() {
+        if (new Handler().getLooper() != Looper.getMainLooper()) {
+            throw new RuntimeException(" must init in Main thread !");
+        }
+
+        HandlerThread mHandlerThread = new CheckerHandlerThread("monitor",
                 android.os.Process.THREAD_PRIORITY_DISPLAY);
+        mHandlerThread.start();
+        mCheckerHandler = new Handler(mHandlerThread.getLooper(), this);
         mMainHandler = new Handler(Looper.getMainLooper());
         stackQueue = new QueueCache<>(3);
         mInfoConsumer = new InfoConsumer();
+        mMainChoreographer = Choreographer.getInstance();
+        mMainCallback = new Choreographer.FrameCallback() {
+            @Override
+            public void doFrame(final long frameTimeNanos) {
+                final long delta = (frameTimeNanos - lastDoFrameTime) / 1000000;
+                if (lastDoFrameTime != 0 && delta > delay) {
+                    LogUtils.d("monitor", "main doFrame " + delta);
+                    // 单线程操作 queue
+                    mCheckerHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            processInfo(frameTimeNanos / 1000000);
+                        }
+                    });
+
+                }
+                lastDoFrameTime = frameTimeNanos;
+                if (mLoopFlag) {
+                    mMainChoreographer.postFrameCallback(mMainCallback);
+                }
+            }
+        };
+
     }
 
     public void start() {
-        mHandlerThread.start();
+        mSampleChoreographer.postFrameCallback(mSampleCallback);
+        mMainChoreographer.postFrameCallback(mMainCallback);
     }
 
     public void stop() {
-        loopFlag = false;
+        mLoopFlag = false;
         mInfoConsumer.stopConsume();
     }
 
-    private void statisticsStack(long time, long delta) {
+    /**
+     * @param time  ms
+     * @param delta ms
+     */
+    private void statisticsStack(final long time, long delta) {
         /**
          * cost < 1ms
          */
         StackTraceElement[] elements = mMainHandler.getLooper().getThread().getStackTrace();
-        time = time / 1000000;
+
         stackQueue.put(time, StackInfo.newBuilder().
                 delta(delta).
-                currentTime(time).
+                sampleTime(time).
                 elements(elements)
                 .build());
     }
 
-    private void processInfo() {
+    /**
+     * @param checkTime ms
+     */
+    private void processInfo(final long checkTime) {
         for (StackInfo stackInfo : stackQueue.values()) {
+            stackInfo.setCheckTime(checkTime);
             mInfoConsumer.consume(stackInfo);
         }
         stackQueue.clear();
@@ -63,43 +116,44 @@ public class Monitor implements Handler.Callback {
 
     @Override
     public boolean handleMessage(Message msg) {
+        switch (msg.what) {
+            case MSG_TYPE_LOOP:
+
+                break;
+        }
         return false;
     }
 
-    class TestHandlerThread extends HandlerThread {
-
-        public TestHandlerThread(String name) {
-            super(name);
-        }
-
+    class CheckerHandlerThread extends HandlerThread {
         @Override
         protected void onLooperPrepared() {
-            super.onLooperPrepared();
-            choreographer = Choreographer.getInstance();
-            callback = new Choreographer.FrameCallback() {
+            mSampleChoreographer = Choreographer.getInstance();
+            mSampleCallback = new Choreographer.FrameCallback() {
                 @Override
                 public void doFrame(long frameTimeNanos) {
-                    long delta = (frameTimeNanos - lastTime) / 1000000;
-                    if (lastTime != 0 && delta > delay) {
-                        // LogUtils.d(sTAG, "callback after " + delta + " ms");
-                        statisticsStack(frameTimeNanos, delta);
-                        processInfo();
+                    final long delta = (frameTimeNanos - lastSampleTime) / 1000000;
+                    if (lastSampleTime != 0 && delta > delay) {
+                        LogUtils.w("monitor", "sample doFrame " + delta);
+                        processInfo(frameTimeNanos / 1000000);
+                    } else {
+                        statisticsStack(frameTimeNanos / 1000000, delta);
                     }
-                    // everything is ok ,continue
-                    lastTime = frameTimeNanos;
-                    if (loopFlag) choreographer.postFrameCallback(callback);
+                    lastSampleTime = frameTimeNanos;
+                    if (mLoopFlag) {
+                        mSampleChoreographer.postFrameCallback(mSampleCallback);
+                    }
                 }
             };
-            choreographer.postFrameCallback(callback);
+
         }
 
-        @Override
-        public void run() {
-            super.run();
-        }
-
-        public TestHandlerThread(String name, int priority) {
+        public CheckerHandlerThread(String name, int priority) {
             super(name, priority);
         }
+    }
+
+    public Monitor setThreshold(int threshold) {
+        this.threshold = threshold;
+        return this;
     }
 }

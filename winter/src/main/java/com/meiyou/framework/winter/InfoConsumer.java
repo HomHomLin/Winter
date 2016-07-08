@@ -10,6 +10,9 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 /**
  * info的消费者
@@ -18,31 +21,25 @@ import java.io.IOException;
 public class InfoConsumer extends HandlerThread implements Handler.Callback {
     private Handler mHandler;
     private final static int MSG_TYPE_INFO = 1;
+    private final static int MSG_TYPE_CLOSE = 2;
     private File mFile;
     private BufferedWriter mBufferedWriter;
     private int count;
     private boolean advanceMode = true;
+    private boolean close = false;
 
     public void consume(StackInfo info) {
         mHandler.dispatchMessage(Message.obtain(mHandler, MSG_TYPE_INFO, info));
     }
 
     public void stopConsume() {
-        try {
-            if (mBufferedWriter == null) {
-                return;
-            }
-            mBufferedWriter.flush();
-            mBufferedWriter.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        mHandler.dispatchMessage(Message.obtain(mHandler, MSG_TYPE_CLOSE));
     }
 
     public InfoConsumer() {
         super("info-cunsumer", Process.THREAD_PRIORITY_FOREGROUND);
         start();
-        mHandler = new Handler(this.getLooper(),this);
+        mHandler = new Handler(this.getLooper(), this);
     }
 
     private File createFile() {
@@ -51,7 +48,9 @@ public class InfoConsumer extends HandlerThread implements Handler.Callback {
         if (!dirFile.exists()) {
             dirFile.mkdirs();
         }
-        File file = new File(dir + "/" + System.currentTimeMillis() + ".log");
+        SimpleDateFormat dateformat1 = new SimpleDateFormat("yyyy-MM-dd:HH:mm:ss", Locale.CHINESE);
+        String a1 = dateformat1.format(new Date());
+        File file = new File(dir + "/" + a1 + ".log");
         if (!file.exists()) {
             try {
                 file.createNewFile();
@@ -80,6 +79,17 @@ public class InfoConsumer extends HandlerThread implements Handler.Callback {
                     saveFile(stackInfo);
                 }
                 break;
+            case MSG_TYPE_CLOSE:
+                try {
+                    if (mBufferedWriter != null && !close) {
+                        mBufferedWriter.flush();
+                        mBufferedWriter.close();
+                        close = true;
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                break;
         }
         return false;
     }
@@ -94,9 +104,13 @@ public class InfoConsumer extends HandlerThread implements Handler.Callback {
     private void saveFile(StackInfo stackInfo) {
         try {
             checkInit();
-            mBufferedWriter.write("current time:"+String.valueOf(stackInfo.currentTime) + "ms");
+            mBufferedWriter.write("sample time:" + String.valueOf(stackInfo.mSampleTime) + "ms");
             mBufferedWriter.newLine();
-            mBufferedWriter.write("doFrame cost:"+String.valueOf(stackInfo.delta)+ "ms");
+            mBufferedWriter.write(" check time:" + String.valueOf(stackInfo.mCheckTime) + "ms");
+            mBufferedWriter.newLine();
+            mBufferedWriter.write(" cost  time:" + String.valueOf(stackInfo.mCheckTime - stackInfo.mSampleTime) + "ms");
+            mBufferedWriter.newLine();
+            mBufferedWriter.write("time delta:" + String.valueOf(stackInfo.mCheckTime) + "ms");
             mBufferedWriter.newLine();
             mBufferedWriter.write(stackInfo.getStackTraceString());
             mBufferedWriter.newLine();
@@ -118,6 +132,7 @@ public class InfoConsumer extends HandlerThread implements Handler.Callback {
             String str = element.toString();
             if (!(startsWith(str, "android.")
                     || startsWith(str, "java.")
+                    || startsWith(str, "dalvik.")
                     || startsWith(str, "com.android."))) {
                 return true;
             }

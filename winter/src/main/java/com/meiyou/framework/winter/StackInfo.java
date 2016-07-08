@@ -6,19 +6,33 @@ package com.meiyou.framework.winter;
  */
 public class StackInfo {
     StackTraceElement[] elements;
-    long currentTime;
+    long mCheckTime;// 检测是否丢帧的时刻
     long delta;
+    long mSampleTime;//采样 时间
 
     public StackTraceElement[] getElements() {
         return elements;
     }
 
-    public long getCurrentTime() {
-        return currentTime;
+    public long getCheckTime() {
+        return mCheckTime;
     }
 
     public long getDelta() {
         return delta;
+    }
+
+    public long getSampleTime() {
+        return mSampleTime;
+    }
+
+    public void setCheckTime(long checkTime) {
+        mCheckTime = checkTime;
+    }
+
+    public StackInfo setSampleTime(long sampleTime) {
+        this.mSampleTime = sampleTime;
+        return this;
     }
 
     public String getStackTraceString() {
@@ -34,8 +48,9 @@ public class StackInfo {
 
     private StackInfo(Builder builder) {
         elements = builder.elements;
-        currentTime = builder.currentTime;
+        mCheckTime = builder.mCheckTime;
         delta = builder.delta;
+        setSampleTime(builder.mSampleTime);
     }
 
     public static Builder newBuilder() {
@@ -45,8 +60,9 @@ public class StackInfo {
 
     public static final class Builder {
         private StackTraceElement[] elements;
-        private long currentTime;
+        private long mCheckTime;
         private long delta;
+        private long mSampleTime;
 
         private Builder() {
         }
@@ -56,8 +72,8 @@ public class StackInfo {
             return this;
         }
 
-        public Builder currentTime(long val) {
-            currentTime = val;
+        public Builder checkTime(long val) {
+            mCheckTime = val;
             return this;
         }
 
@@ -66,8 +82,14 @@ public class StackInfo {
             return this;
         }
 
+        public Builder sampleTime(long val) {
+            mSampleTime = val;
+            return this;
+        }
+
         public StackInfo build() {
             return new StackInfo(this);
         }
+
     }
 }
