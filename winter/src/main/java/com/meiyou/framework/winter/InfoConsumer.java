@@ -27,6 +27,7 @@ public class InfoConsumer extends HandlerThread implements Handler.Callback {
     private int count;
     private boolean advanceMode = true;
     private boolean close = false;
+    private boolean noSystemCode = false;
 
     public void consume(StackInfo info) {
         mHandler.dispatchMessage(Message.obtain(mHandler, MSG_TYPE_INFO, info));
@@ -36,8 +37,9 @@ public class InfoConsumer extends HandlerThread implements Handler.Callback {
         mHandler.dispatchMessage(Message.obtain(mHandler, MSG_TYPE_CLOSE));
     }
 
-    public InfoConsumer() {
-        super("info-cunsumer", Process.THREAD_PRIORITY_FOREGROUND);
+    public InfoConsumer(boolean noSystemCode) {
+        super("info-consumer", Process.THREAD_PRIORITY_BACKGROUND);
+        this.noSystemCode = noSystemCode;
         start();
         mHandler = new Handler(this.getLooper(), this);
     }
@@ -72,9 +74,9 @@ public class InfoConsumer extends HandlerThread implements Handler.Callback {
             case MSG_TYPE_INFO:
                 StackInfo stackInfo = (StackInfo) msg.obj;
                 if (advanceMode) {
-                    if (hasUsefulCodes(stackInfo.elements)) {
+                    //if (StackInfo.hasUsefulCodes(stackInfo.elements)) {
                         saveFile(stackInfo);
-                    }
+                    //}
                 } else {
                     saveFile(stackInfo);
                 }
@@ -104,53 +106,25 @@ public class InfoConsumer extends HandlerThread implements Handler.Callback {
     private void saveFile(StackInfo stackInfo) {
         try {
             checkInit();
-            mBufferedWriter.write("sample time:" + String.valueOf(stackInfo.mSampleTime) + "ms");
+
+            mBufferedWriter.write("tag:" + String.valueOf(stackInfo.getTag()));
             mBufferedWriter.newLine();
-            mBufferedWriter.write(" check time:" + String.valueOf(stackInfo.mCheckTime) + "ms");
+            mBufferedWriter.write("type:" + String.valueOf(stackInfo.getTypeString()));
             mBufferedWriter.newLine();
-            mBufferedWriter.write(" cost  time:" + String.valueOf(stackInfo.mCheckTime - stackInfo.mSampleTime) + "ms");
+            mBufferedWriter.write("time:" + String.valueOf(stackInfo.getCurrentTime()) + " ms");
             mBufferedWriter.newLine();
-            mBufferedWriter.write("time delta:" + String.valueOf(stackInfo.delta) + "ms");
+            mBufferedWriter.write(" sample delta:" + String.valueOf(stackInfo.getSampleDelta()) + "ms");
             mBufferedWriter.newLine();
-            mBufferedWriter.write(stackInfo.getStackTraceString());
+            mBufferedWriter.write(stackInfo.getStackTraceString(this.noSystemCode));
             mBufferedWriter.newLine();
             count++;
-            if (count >= 5) {
+            if (count >= 8) {
                 mBufferedWriter.flush();
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-    }
-
-    private boolean hasUsefulCodes(StackTraceElement[] elements) {
-        if (elements == null) {
-            return false;
-        }
-        for (StackTraceElement element : elements) {
-            String str = element.toString();
-            if (!(startsWith(str, "android.")
-                    || startsWith(str, "java.")
-                    || startsWith(str, "dalvik.")
-                    || startsWith(str, "com.android."))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-
-    public static boolean startsWith(String str, String prefix) {
-        return startsWith(str, prefix, false);
-    }
-
-    public static boolean startsWithIgnoreCase(String str, String prefix) {
-        return startsWith(str, prefix, true);
-    }
-
-    private static boolean startsWith(String str, String prefix, boolean ignoreCase) {
-        return str != null && prefix != null ? (prefix.length() > str.length() ? false : str.regionMatches(ignoreCase, 0, prefix, 0, prefix.length())) : str == null && prefix == null;
     }
 
 }

@@ -4,6 +4,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
+import android.os.Process;
 import android.view.Choreographer;
 
 
@@ -30,6 +31,7 @@ public class Monitor implements Handler.Callback {
     private static final int MSG_TYPE_LOOP = 0;
     private boolean inited = false;
     final private Boolean[] lock = new Boolean[]{false};
+    private boolean noSystemCode = false;
 
     public static Monitor getInstance() {
         return Holder.sMonitor;
@@ -42,7 +44,7 @@ public class Monitor implements Handler.Callback {
     private Monitor() {
     }
 
-    public Monitor init(int threshold) {
+    public Monitor init(int threshold,boolean noSystemCode) {
         if (new Handler().getLooper() != Looper.getMainLooper()) {
             throw new RuntimeException(" must init in Main thread !");
         }
@@ -56,12 +58,12 @@ public class Monitor implements Handler.Callback {
         this.threshold = threshold;
         this.delay = delay * threshold;
         HandlerThread mHandlerThread = new CheckerHandlerThread("monitor",
-                android.os.Process.THREAD_PRIORITY_DISPLAY);
+                Process.THREAD_PRIORITY_FOREGROUND);
         mHandlerThread.start();
         mCheckerHandler = new Handler(mHandlerThread.getLooper(), this);
         mMainHandler = new Handler(Looper.getMainLooper());
         stackQueue = new QueueCache<>(threshold + 1);
-        mInfoConsumer = new InfoConsumer();
+        mInfoConsumer = new InfoConsumer(noSystemCode);
         mMainChoreographer = Choreographer.getInstance();
         mMainCallback = new Choreographer.FrameCallback() {
             @Override
@@ -74,6 +76,7 @@ public class Monitor implements Handler.Callback {
                     mCheckerHandler.post(new Runnable() {
                         @Override
                         public void run() {
+                            statisticsStack(frameTimeNanos / 1000000, delta, StackInfo.TYPE_CHECK);
                             processInfo(lastTime / 1000000, frameTimeNanos / 1000000);
                         }
                     });
@@ -110,31 +113,26 @@ public class Monitor implements Handler.Callback {
      * @param time  ms
      * @param delta ms
      */
-    private void statisticsStack(final long time, long delta) {
+    private void statisticsStack(final long time, long delta, int type) {
         /**
          * cost < 1ms
          */
         StackTraceElement[] elements = mMainHandler.getLooper().getThread().getStackTrace();
 
-        stackQueue.put(time, StackInfo.newBuilder().
-                delta(delta).
-                sampleTime(time).
-                elements(elements)
-                .build());
+        stackQueue.put(time, new StackInfo(elements, time, type, delta));
     }
 
     /**
      */
     private void processInfo(final long checkLastTime, final long checkNowTime) {
         for (StackInfo stackInfo : stackQueue.values()) {
-            if (stackInfo.mSampleTime > checkLastTime &&
-                    stackInfo.mSampleTime < checkNowTime) {
-                stackInfo.setCheckTime(checkNowTime);
+            if (stackInfo.getCurrentTime() > checkLastTime
+                    && stackInfo.getCurrentTime() <= checkNowTime) {
+                stackInfo.setTag("tag-" + checkNowTime);
                 mInfoConsumer.consume(stackInfo);
             }
 
         }
-        //stackQueue.clear();
     }
 
     @Override
@@ -168,7 +166,7 @@ public class Monitor implements Handler.Callback {
                         mCheckerHandler.post(new Runnable() {
                             @Override
                             public void run() {
-                                statisticsStack(frameTimeNanos / 1000000, delta);
+                                statisticsStack(frameTimeNanos / 1000000, delta, StackInfo.TYPE_SAMPLE);
                             }
                         });
                     }
@@ -188,8 +186,4 @@ public class Monitor implements Handler.Callback {
         }
     }
 
-    public Monitor setThreshold(int threshold) {
-        this.threshold = threshold;
-        return this;
-    }
 }

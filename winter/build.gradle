@@ -25,13 +25,13 @@ dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
     testCompile 'junit:junit:4.12'
     compile 'com.android.support:appcompat-v7:23.4.0'
-    compile 'com.meiyou.sdk:core:2.2-SNAPSHOT'
+    //compile 'com.meiyou.sdk:core:2.2-SNAPSHOT'
 }
 
 pomConf {
     groupId 'com.meiyou.framework'
     artifactId 'winter'
-    depVersion '0.0.3-SNAPSHOT'
+    depVersion '0.0.10-SNAPSHOT'
     packaging "aar"
 }
 

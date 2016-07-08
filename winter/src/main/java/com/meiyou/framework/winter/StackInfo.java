@@ -6,90 +6,113 @@ package com.meiyou.framework.winter;
  */
 public class StackInfo {
     StackTraceElement[] elements;
-    long mCheckTime;// 检测是否丢帧的时刻
-    long delta;
-    long mSampleTime;//采样 时间
+    long mSampleDelta;//采样周期
+    long mCurrentTime;
+    int type;
+    final public static int TYPE_SAMPLE = 0;
+    final public static int TYPE_CHECK = 1;
+    String mTag;
+
+    public StackInfo(StackTraceElement[] elements, long currentTime, int type, long sampleDelta) {
+        this.elements = elements;
+        this.mCurrentTime = currentTime;
+        this.type = type;
+        this.mSampleDelta = sampleDelta;
+    }
 
     public StackTraceElement[] getElements() {
         return elements;
     }
 
-    public long getCheckTime() {
-        return mCheckTime;
+    public void setElements(StackTraceElement[] elements) {
+        this.elements = elements;
     }
 
-    public long getDelta() {
-        return delta;
+    public long getSampleDelta() {
+        return mSampleDelta;
     }
 
-    public long getSampleTime() {
-        return mSampleTime;
+    public void setSampleDelta(long sampleDelta) {
+        mSampleDelta = sampleDelta;
     }
 
-    public void setCheckTime(long checkTime) {
-        mCheckTime = checkTime;
+    public long getCurrentTime() {
+        return mCurrentTime;
     }
 
-    public StackInfo setSampleTime(long sampleTime) {
-        this.mSampleTime = sampleTime;
-        return this;
+    public void setCurrentTime(long currentTime) {
+        mCurrentTime = currentTime;
     }
 
-    public String getStackTraceString() {
+    public int getType() {
+        return type;
+    }
+
+    public String getTypeString() {
+        return type == TYPE_SAMPLE ? "sample" : "check";
+    }
+
+    public void setType(int type) {
+        this.type = type;
+    }
+
+    public String getTag() {
+        return mTag;
+    }
+
+    public void setTag(String tag) {
+        mTag = tag;
+    }
+
+    public String getStackTraceString(boolean noSystemCode) {
         if (elements != null) {
             StringBuilder builder = new StringBuilder();
             for (StackTraceElement element : elements) {
-                builder.append(element.toString()).append("\n");
+                if (!noSystemCode) {
+                    builder.append(element.toString()).append("\n");
+                } else {
+                    if (!isSystemMethod(element.toString())) {
+                        builder.append(element.toString()).append("\n");
+                    }
+                }
+
             }
             return builder.toString();
         }
         return "";
     }
 
-    private StackInfo(Builder builder) {
-        elements = builder.elements;
-        mCheckTime = builder.mCheckTime;
-        delta = builder.delta;
-        setSampleTime(builder.mSampleTime);
+    public static boolean hasUsefulCodes(StackTraceElement[] elements) {
+        if (elements == null) {
+            return false;
+        }
+        for (StackTraceElement element : elements) {
+            String str = element.toString();
+            if (isSystemMethod(str)) return true;
+        }
+        return false;
     }
 
-    public static Builder newBuilder() {
-        return new Builder();
+    private static boolean isSystemMethod(String str) {
+        if ((startsWith(str, "android.")
+                || startsWith(str, "java.")
+                || startsWith(str, "dalvik.")
+                || startsWith(str, "com.android."))) {
+            return true;
+        }
+        return false;
     }
 
-
-    public static final class Builder {
-        private StackTraceElement[] elements;
-        private long mCheckTime;
-        private long delta;
-        private long mSampleTime;
-
-        private Builder() {
-        }
-
-        public Builder elements(StackTraceElement[] val) {
-            elements = val;
-            return this;
-        }
-
-        public Builder checkTime(long val) {
-            mCheckTime = val;
-            return this;
-        }
-
-        public Builder delta(long val) {
-            delta = val;
-            return this;
-        }
-
-        public Builder sampleTime(long val) {
-            mSampleTime = val;
-            return this;
-        }
-
-        public StackInfo build() {
-            return new StackInfo(this);
-        }
-
+    public static boolean startsWith(String str, String prefix) {
+        return startsWith(str, prefix, false);
     }
+
+    public static boolean startsWithIgnoreCase(String str, String prefix) {
+        return startsWith(str, prefix, true);
+    }
+
+    private static boolean startsWith(String str, String prefix, boolean ignoreCase) {
+        return str != null && prefix != null ? (prefix.length() > str.length() ? false : str.regionMatches(ignoreCase, 0, prefix, 0, prefix.length())) : str == null && prefix == null;
+    }
+
 }
