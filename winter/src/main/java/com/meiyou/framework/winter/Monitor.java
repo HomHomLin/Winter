@@ -29,6 +29,7 @@ public class Monitor implements Handler.Callback {
     private InfoConsumer mInfoConsumer;
     private static final int MSG_TYPE_LOOP = 0;
     private boolean inited = false;
+    final private Boolean[] lock = new Boolean[]{false};
 
     public static Monitor getInstance() {
         return Holder.sMonitor;
@@ -89,7 +90,13 @@ public class Monitor implements Handler.Callback {
     }
 
     public void start() {
-        //TODO fix mSampleChoreographer 可能还没有创建
+        while (!lock[0]) {
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
         mSampleChoreographer.postFrameCallback(mSampleCallback);
         mMainChoreographer.postFrameCallback(mMainCallback);
     }
@@ -171,6 +178,8 @@ public class Monitor implements Handler.Callback {
                     }
                 }
             };
+
+            lock[0] = true;
 
         }
 
