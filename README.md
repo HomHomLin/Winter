@@ -36,7 +36,7 @@
     public void stop() ;    
 ```
 ##### 查看日志
-监控完毕,会在手机的/sdcard/winter/monitor/ 目录下生成相应的日志文件,文件内容格式类似于:
+监控完毕,会在手机的/sdcard/winter/monitor/ 目录下生成相应的日志文件 ${date}.log ,文件内容格式类似于:
 ```java
 
 tag:tag-37274828
@@ -47,7 +47,7 @@ com.meiyou.slidingmenu.lib.CustomViewBehind.onMeasure(CustomViewBehind.java:144)
 
 ```
 tag 用于标示改信息属于哪一帧            
-type表示是16ms的那一刻的堆栈情况,还是帧开始结束的那一刻情况,由于可能丢N帧,所以 type:sample的信息可能存在N个.
+type表示是16ms的那一刻的堆栈情况,还是帧开始结束的那一刻情况,由于可能丢N帧,所以 type:sample的信息可能存在N个.             
 time 是那一刻的时间                
 sample delta 表示采样速率,一般是16ms             
-最后就是在时间time 主线程的堆栈,如果`noSystemCode`为true 则不包含Android系统相关代码.
+最后就是在时间time 主线程的堆栈,如果`noSystemCode`为true 则不包含Android系统相关代码              
