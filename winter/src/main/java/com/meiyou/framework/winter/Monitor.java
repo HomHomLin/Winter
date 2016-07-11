@@ -44,6 +44,13 @@ public class Monitor implements Handler.Callback {
     private Monitor() {
     }
 
+    /**
+     *
+     * @param threshold  设置输出日志的阈值,
+     *                   比如设置为10,日志会追踪所有丢帧超过10帧的场景
+     * @param noSystemCode  堆栈是否需要含有Android系统代码
+     * @return
+     */
     public Monitor init(int threshold,boolean noSystemCode) {
         if (new Handler().getLooper() != Looper.getMainLooper()) {
             throw new RuntimeException(" must init in Main thread !");
@@ -92,6 +99,9 @@ public class Monitor implements Handler.Callback {
         return this;
     }
 
+    /**
+     * 启动监控
+     */
     public void start() {
         while (!lock[0]) {
             try {
@@ -104,6 +114,9 @@ public class Monitor implements Handler.Callback {
         mMainChoreographer.postFrameCallback(mMainCallback);
     }
 
+    /**
+     * 结束监控
+     */
     public void stop() {
         mLoopFlag = false;
         mInfoConsumer.stopConsume();
