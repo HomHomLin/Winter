@@ -28,11 +28,3 @@ dependencies {
     //compile 'com.meiyou.sdk:core:2.2-SNAPSHOT'
 }
 
-pomConf {
-    groupId 'com.meiyou.framework'
-    artifactId 'winter'
-    depVersion '0.0.10-SNAPSHOT'
-    packaging "aar"
-}
-
-println project.version
